@@ -1,40 +1,40 @@
 # -----------------------------------------------------
 # Graphite Client
-# Send metrics to graphite (or to some kind of middleware/proxy) 
+# Send metrics to graphite (or to some kind of middleware/proxy)
 # -----------------------------------------------------
 # Usage
 #
-#  client = GraphiteAPI::Client.new(  
+#  client = GraphiteAPI::Client.new(
 #   :graphite => "graphite.example.com:2003",
 #   :prefix   => ["example","prefix"], # add example.prefix to each key
 #   :slice    => 60.seconds            # results are aggregated in 60 seconds slices
 #   :interval => 60.seconds            # send to graphite every 60 seconds
 #  )
-#  
-#  client.webServer.web01.loadAvg 10.7 
+#
+#  client.webServer.web01.loadAvg 10.7
 #  # => example.prefix.webServer.web01.loadAvg 10.7 time.now.to_i
 
 #  client.metrics "webServer.web01.loadAvg" => 10.7
 #  # => example.prefix.webServer.web01.loadAvg 10.7 time.now.to_i
-#  
+#
 #  client.metrics({
 #   "webServer.web01.loadAvg"  => 10.7,
 #   "webServer.web01.memUsage" => 40
 #  },Time.at(1326067060))
 #  # => example.prefix.webServer.web01.loadAvg  10.7 1326067060
 #  # => example.prefix.webServer.web01.memUsage 40 1326067060
-# 
+#
 #  #  Timers
 # client.every 10.seconds do |c|
 #   c.webServer.web01.uptime `uptime`.split.first.to_i
 #   # => example.prefix.webServer.web01.uptime 40 1326067060
 # end
-# 
+#
 # client.every 52.minutes do |c|
-#   c.abcd.efghi.jklmnop.qrst 12 
+#   c.abcd.efghi.jklmnop.qrst 12
 #   # => example.prefix.abcd.efghi.jklmnop.qrst 12 1326067060
 # end
-# 
+#
 # client.join # wait...
 # -----------------------------------------------------
 
@@ -51,6 +51,7 @@ module GraphiteAPI
       @buffer  = GraphiteAPI::Buffer.new options
       @connectors = GraphiteAPI::Connector::Group.new options
       @direct_send = @options[:interval] == 0
+      @publishing_lock = Mutex.new
 
       if direct_send
         options[:slice] = 1
@@ -67,7 +68,7 @@ module GraphiteAPI
       Zscheduler.every( interval ) { block.arity == 1 ? block.call(self) : block.call }
     end
 
-    def metrics metric, time = Time.now 
+    def metrics metric, time = Time.now
       buffer.push :metric => metric, :time => time
       send_metrics if direct_send
     end
@@ -78,7 +79,7 @@ module GraphiteAPI
     #
     # increment("key1","key2")
     # => metrics("key1" => 1, "key2" => 1)
-    # 
+    #
     # increment("key1","key2", {:by => 999})
     # => metrics("key1" => 999, "key2" => 999)
     #
@@ -94,7 +95,8 @@ module GraphiteAPI
     end
 
     def join
-      sleep while buffer.new_records?
+      sleep(1) while buffer.new_records?
+      @publishing_lock.synchronize {}
     end
 
     def method_missing m, *args, &block
@@ -140,7 +142,11 @@ module GraphiteAPI
     end
 
     def send_metrics
-      connectors.publish buffer.pull :string if buffer.new_records?
+      if(buffer.new_records?)
+        @publishing_lock.synchronize do
+          connectors.publish buffer.pull :string
+        end
+      end
     end
 
   end
