@@ -150,14 +150,14 @@ module GraphiteAPI
     end
 
     def send_metrics
-      log {"#{__method__}: Entering"}
+      #log {"#{__method__}: Entering"}
       if(buffer.new_records?)
         log {"#{__method__}: Waiting for publishing lock."}
         @publishing_lock.synchronize do
           connectors.publish buffer.pull :string
         end
       end
-      log {"#{__method__}: Leaving"}
+      #log {"#{__method__}: Leaving"}
     end
 
   end
