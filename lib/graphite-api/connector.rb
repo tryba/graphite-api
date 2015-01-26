@@ -42,9 +42,11 @@ module GraphiteAPI
       begin
         debug [:connector,:puts,[host,port].join(":"),message]
         socket.puts message + "\n"
-      rescue Errno::EPIPE, Errno::EINVAL, Errno::ETIMEDOUT
+      rescue Errno::EPIPE, Errno::EINVAL
         @socket = nil
-      retry
+        retry
+      rescue Errno::ETIMEDOUT
+        socket = nil
       end
     end
 
