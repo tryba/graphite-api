@@ -20,7 +20,7 @@ GraphiteAPI::GemSpec = Gem::Specification.new do |s|
   s.add_dependency 'zscheduler',  '>= 0.0.3'
 end
 
-task :gem => [:test,:clobber_package]
+task :gem => [:clobber_package]
 
 Gem::PackageTask.new(GraphiteAPI::GemSpec) do |p|
   p.gem_spec = GraphiteAPI::GemSpec
